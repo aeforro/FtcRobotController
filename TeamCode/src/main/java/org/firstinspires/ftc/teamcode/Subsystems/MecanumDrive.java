@@ -41,19 +41,25 @@ public class MecanumDrive {
         double frontRightPower = forward - strafe - rotate;
         double backRightPower = forward + strafe - rotate;
 
-        double maxPower = 1.0;
+        double maxPower = Math.max(1.0, Math.max(Math.abs(frontLeftPower),
+                Math.max(Math.abs(backLeftPower),
+                        Math.max(Math.abs(frontRightPower), Math.abs(backRightPower)))));
+
         double maxSpeed = 1.0;
         //Change this if robot is too fast for kids to control
 
-        maxPower = Math.min(maxPower, Math.abs(frontLeftPower));
-        maxPower = Math.min(maxPower, Math.abs(backLeftPower));
-        maxPower = Math.min(maxPower, Math.abs(frontRightPower));
-        maxPower = Math.min(maxPower, Math.abs(backRightPower));
+        double scale = maxSpeed / maxPower;
+        frontLeftMotor.setPower(frontLeftPower * scale);
+        backLeftMotor.setPower(backLeftPower * scale);
+        frontRightMotor.setPower(frontRightPower * scale);
+        backRightMotor.setPower(backRightPower * scale);
+    }
 
-        frontLeftMotor.setPower(maxSpeed * (frontLeftPower / maxPower));
-        backLeftMotor.setPower(maxSpeed * (backLeftPower / maxPower));
-        frontRightMotor.setPower(maxSpeed * (frontRightPower / maxPower));
-        backRightMotor.setPower(maxSpeed * (backRightPower / maxPower));
+    public void stop() {
+        frontLeftMotor.setPower(0.0);
+        backLeftMotor.setPower(0.0);
+        frontRightMotor.setPower(0.0);
+        backRightMotor.setPower(0.0);
     }
 
     public void driveFieldRelative(double forward, double strafe, double rotate) {

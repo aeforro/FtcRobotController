@@ -33,6 +33,7 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.Range;
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 
 /*
  * This file works in conjunction with the External Hardware Class sample called: ConceptExternalHardwareClass.java
@@ -64,6 +65,9 @@ public class RobotHardware {
     private DcMotor armMotor = null;
     private Servo   leftHand = null;
     private Servo   rightHand = null;
+
+    // Optional GoBilda Pinpoint odometry/IMU driver (if present in hardware map)
+    private GoBildaPinpointDriver pinpoint = null;
 
     // Define Drive constants.  Make them public so they CAN be used by the calling OpMode
     public static final double MID_SERVO       =  0.5 ;
@@ -103,6 +107,15 @@ public class RobotHardware {
         rightHand = myOpMode.hardwareMap.get(Servo.class, "right_hand");
         leftHand.setPosition(MID_SERVO);
         rightHand.setPosition(MID_SERVO);
+
+        // Try to get the GoBilda Pinpoint device if configured on this robot
+        try {
+            pinpoint = myOpMode.hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+            myOpMode.telemetry.addData("Pinpoint", "initialized");
+        } catch (Exception e) {
+            pinpoint = null;
+            myOpMode.telemetry.addData("Pinpoint", "not configured");
+        }
 
         myOpMode.telemetry.addData(">", "Hardware Initialized");
         myOpMode.telemetry.update();
@@ -164,4 +177,19 @@ public class RobotHardware {
         leftHand.setPosition(MID_SERVO + offset);
         rightHand.setPosition(MID_SERVO - offset);
     }
+
+    /**
+     * Returns true if a GoBilda Pinpoint device was found/configured.
+     */
+    public boolean hasPinpoint() {
+        return pinpoint != null;
+    }
+
+    /**
+     * Returns the Pinpoint driver instance or null if not configured.
+     */
+    public GoBildaPinpointDriver getPinpoint() {
+        return pinpoint;
+    }
 }
+

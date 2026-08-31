@@ -40,6 +40,10 @@ import com.qualcomm.robotcore.util.Range;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+
 /*
  *  This OpMode illustrates the concept of driving an autonomous path based on Gyro (IMU) heading and encoder counts.
  *  The code is structured as a LinearOpMode
@@ -96,6 +100,10 @@ public class RobotAutoDriveByGyro_Linear extends LinearOpMode {
     private DcMotor         leftDrive   = null;
     private DcMotor         rightDrive  = null;
     private IMU             imu         = null;      // Control/Expansion Hub IMU
+
+    // Optional Pinpoint device
+    private GoBildaPinpointDriver pinpoint = null;
+    private boolean usePinpoint = false;
 
     private double          headingError  = 0;
 
@@ -162,6 +170,18 @@ public class RobotAutoDriveByGyro_Linear extends LinearOpMode {
         imu = hardwareMap.get(IMU.class, "imu");
         imu.initialize(new IMU.Parameters(orientationOnRobot));
 
+        // Try to attach to a GoBilda Pinpoint device (named "pinpoint") and prefer it for heading if present
+        try {
+            pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+            usePinpoint = true;
+            telemetry.log().add("Using GoBilda Pinpoint for heading");
+            // Configure the pinpoint similar to typical defaults (do not overwrite team-specific tuning)
+            pinpoint.update();
+        } catch (Exception e) {
+            pinpoint = null;
+            usePinpoint = false;
+        }
+
         // Ensure the robot is stationary.  Reset the encoders and set the motors to BRAKE mode
         leftDrive.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         rightDrive.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
@@ -177,7 +197,16 @@ public class RobotAutoDriveByGyro_Linear extends LinearOpMode {
         // Set the encoders for closed loop speed control, and reset the heading.
         leftDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         rightDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        imu.resetYaw();
+        if (usePinpoint && pinpoint != null) {
+            // Reset pinpoint IMU/pose so heading is zeroed
+            try {
+                pinpoint.resetPosAndIMU();
+            } catch (Exception e) {
+                // ignore if device doesn't support it
+            }
+        } else {
+            imu.resetYaw();
+        }
 
         // Step through each leg of the path,
         // Notes:   Reverse movement is obtained by setting a negative distance (not speed)
@@ -423,6 +452,12 @@ public class RobotAutoDriveByGyro_Linear extends LinearOpMode {
      * read the Robot heading directly from the IMU (in degrees)
      */
     public double getHeading() {
+        if (usePinpoint && pinpoint != null) {
+            pinpoint.update();
+            Pose2D p = pinpoint.getPosition();
+            return p.getHeading(AngleUnit.DEGREES);
+        }
+
         YawPitchRollAngles orientation = imu.getRobotYawPitchRollAngles();
         return orientation.getYaw(AngleUnit.DEGREES);
     }

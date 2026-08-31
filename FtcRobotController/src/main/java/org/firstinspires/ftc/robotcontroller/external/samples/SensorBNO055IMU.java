@@ -43,6 +43,10 @@ import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
 import org.firstinspires.ftc.robotcore.external.navigation.Position;
 import org.firstinspires.ftc.robotcore.external.navigation.Velocity;
 
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+
 import java.util.Locale;
 
 /*
@@ -67,6 +71,10 @@ public class SensorBNO055IMU extends LinearOpMode
     // The IMU sensor object
     BNO055IMU imu;
 
+    // Optional Pinpoint device
+    GoBildaPinpointDriver pinpoint = null;
+    boolean usePinpoint = false;
+
     // State used for updating telemetry
     Orientation angles;
     Acceleration gravity;
@@ -88,11 +96,23 @@ public class SensorBNO055IMU extends LinearOpMode
         parameters.loggingTag          = "IMU";
         parameters.accelerationIntegrationAlgorithm = new JustLoggingAccelerationIntegrator();
 
-        // Retrieve and initialize the IMU. We expect the IMU to be attached to an I2C port
-        // on a Core Device Interface Module, configured to be a sensor of type "AdaFruit IMU",
-        // and named "imu".
-        imu = hardwareMap.get(BNO055IMU.class, "imu");
-        imu.initialize(parameters);
+        // Try to locate a Pinpoint device first (hardware name "pinpoint")
+        try {
+            pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+            usePinpoint = true;
+            telemetry.log().add("Using GoBilda Pinpoint for heading/odometry");
+        } catch (Exception e) {
+            pinpoint = null;
+            usePinpoint = false;
+        }
+
+        if (!usePinpoint) {
+            // Retrieve and initialize the IMU. We expect the IMU to be attached to an I2C port
+            // on a Core Device Interface Module, configured to be a sensor of type "AdaFruit IMU",
+            // and named "imu".
+            imu = hardwareMap.get(BNO055IMU.class, "imu");
+            imu.initialize(parameters);
+        }
 
         // Set up our telemetry dashboard
         composeTelemetry();
@@ -100,12 +120,20 @@ public class SensorBNO055IMU extends LinearOpMode
         // Wait until we're told to go
         waitForStart();
 
-        // Start the logging of measured acceleration
-        imu.startAccelerationIntegration(new Position(), new Velocity(), 1000);
+        if (!usePinpoint) {
+            // Start the logging of measured acceleration
+            imu.startAccelerationIntegration(new Position(), new Velocity(), 1000);
 
-        // Loop and update the dashboard
-        while (opModeIsActive()) {
-            telemetry.update();
+            // Loop and update the dashboard
+            while (opModeIsActive()) {
+                telemetry.update();
+            }
+        } else {
+            // Use pinpoint-based telemetry loop
+            while (opModeIsActive()) {
+                pinpoint.update();
+                telemetry.update();
+            }
         }
     }
 
@@ -114,6 +142,39 @@ public class SensorBNO055IMU extends LinearOpMode
     //----------------------------------------------------------------------------------------------
 
     void composeTelemetry() {
+
+        if (usePinpoint && pinpoint != null) {
+            // When using pinpoint, show pose and heading from the Pinpoint device
+            telemetry.addLine()
+                    .addData("X (in)", new Func<String>() {
+                        @Override public String value() {
+                            Pose2D p = pinpoint.getPosition();
+                            return String.format(Locale.getDefault(), "%.2f", p.getX(DistanceUnit.INCH));
+                        }
+                    })
+                    .addData("Y (in)", new Func<String>() {
+                        @Override public String value() {
+                            Pose2D p = pinpoint.getPosition();
+                            return String.format(Locale.getDefault(), "%.2f", p.getY(DistanceUnit.INCH));
+                        }
+                    });
+
+            telemetry.addLine()
+                    .addData("heading (deg)", new Func<String>() {
+                        @Override public String value() {
+                            Pose2D p = pinpoint.getPosition();
+                            return formatDegrees(p.getHeading(AngleUnit.DEGREES));
+                        }
+                    });
+
+            telemetry.addLine().addData("Pinpoint", new Func<String>() {
+                @Override public String value() {
+                    return "active";
+                }
+            });
+
+            return;
+        }
 
         // At the beginning of each telemetry update, grab a bunch of data
         // from the IMU that we will then display in separate lines.

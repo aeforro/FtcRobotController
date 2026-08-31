@@ -41,6 +41,10 @@ import org.firstinspires.ftc.robotcore.external.navigation.AxesReference;
 import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
 import org.firstinspires.ftc.robotcore.internal.system.AppUtil;
 
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+
 import java.io.File;
 import java.util.Locale;
 
@@ -107,6 +111,10 @@ public class SensorBNO055IMUCalibration extends LinearOpMode
     // Our sensors, motors, and other devices go here, along with other long term state
     BNO055IMU imu;
 
+    // Optional Pinpoint
+    GoBildaPinpointDriver pinpoint = null;
+    boolean usePinpoint = false;
+
     // State used for updating telemetry
     Orientation angles;
 
@@ -127,12 +135,24 @@ public class SensorBNO055IMUCalibration extends LinearOpMode
         telemetry.log().add("calibration data to a file.");
         telemetry.log().add("");
 
-        // We are expecting the IMU to be attached to an I2C port on a Core Device Interface Module and named "imu".
-        BNO055IMU.Parameters parameters = new BNO055IMU.Parameters();
-        parameters.loggingEnabled = true;
-        parameters.loggingTag     = "IMU";
-        imu = hardwareMap.get(BNO055IMU.class, "imu");
-        imu.initialize(parameters);
+        // Try to use a Pinpoint device if available (hardware name "pinpoint")
+        try {
+            pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+            usePinpoint = true;
+            telemetry.log().add("Using GoBilda Pinpoint - BNO055 calibration not required");
+        } catch (Exception e) {
+            pinpoint = null;
+            usePinpoint = false;
+        }
+
+        if (!usePinpoint) {
+            // We are expecting the IMU to be attached to an I2C port on a Core Device Interface Module and named "imu".
+            BNO055IMU.Parameters parameters = new BNO055IMU.Parameters();
+            parameters.loggingEnabled = true;
+            parameters.loggingTag     = "IMU";
+            imu = hardwareMap.get(BNO055IMU.class, "imu");
+            imu.initialize(parameters);
+        }
 
         composeTelemetry();
         telemetry.log().add("Waiting for start...");
@@ -174,6 +194,16 @@ public class SensorBNO055IMUCalibration extends LinearOpMode
     }
 
     void composeTelemetry() {
+
+        if (usePinpoint && pinpoint != null) {
+            telemetry.addLine().addData("Pinpoint", new Func<String>() {
+                @Override public String value() {
+                    Pose2D p = pinpoint.getPosition();
+                    return String.format(Locale.getDefault(), "X=%.2f in Y=%.2f in H=%.1f deg", p.getX(DistanceUnit.INCH), p.getY(DistanceUnit.INCH), p.getHeading(AngleUnit.DEGREES));
+                }
+            });
+            return;
+        }
 
         // At the beginning of each telemetry update, grab a bunch of data
         // from the IMU that we will then display in separate lines.

@@ -7,9 +7,16 @@ import com.qualcomm.robotcore.hardware.IMU;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+import org.firstinspires.ftc.robotcontroller.external.samples.externalhardware.RobotHardware;
+
 public class MecanumDrive {
     private DcMotor frontLeftMotor, backLeftMotor, frontRightMotor, backRightMotor;
     private IMU imu;
+
+    // Optional pinpoint
+    private GoBildaPinpointDriver pinpoint = null;
+    private boolean usePinpoint = false;
 
     public void init(HardwareMap hwMap) {
 
@@ -33,6 +40,17 @@ public class MecanumDrive {
                 RevHubOrientationOnRobot.UsbFacingDirection.UP);
 
         imu.initialize((new IMU.Parameters(RevOrientation)));
+    }
+
+    /**
+     * Initialize using a RobotHardware object so subsystems can prefer its configured Pinpoint.
+     */
+    public void init(HardwareMap hwMap, RobotHardware robotHardware) {
+        init(hwMap);
+        if (robotHardware != null && robotHardware.hasPinpoint()) {
+            pinpoint = robotHardware.getPinpoint();
+            usePinpoint = (pinpoint != null);
+        }
     }
 
     public void drive(double forward, double strafe, double rotate) {
@@ -66,7 +84,15 @@ public class MecanumDrive {
         double theta = Math.atan2(forward, strafe);
         double r = Math.hypot(strafe, forward);
 
-        theta = AngleUnit.normalizeRadians(theta - imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS));
+        double robotYawRad;
+        if (usePinpoint && pinpoint != null) {
+            pinpoint.update();
+            robotYawRad = Math.toRadians(pinpoint.getPosition().getHeading(AngleUnit.DEGREES));
+        } else {
+            robotYawRad = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);
+        }
+
+        theta = AngleUnit.normalizeRadians(theta - robotYawRad);
 
         double newforward = r * Math.sin(theta);
         double newstrafe = r * Math.cos(theta);

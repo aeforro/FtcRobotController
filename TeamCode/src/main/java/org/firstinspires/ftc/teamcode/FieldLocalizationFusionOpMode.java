@@ -5,6 +5,7 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.teamcode.Subsystems.MecanumDrive;
+import org.firstinspires.ftc.robotcontroller.external.samples.externalhardware.RobotHardware;
 
 @TeleOp(name = "Fusion: Limelight + Pinpoint", group = "Concept")
 @Disabled
@@ -14,8 +15,12 @@ public class FieldLocalizationFusionOpMode extends LinearOpMode {
 
     @Override
     public void runOpMode() {
-        drive.init(hardwareMap);
-        localization = new FieldLocalizationFusion(hardwareMap, "limelight", "pinpoint");
+        // Use RobotHardware so subsystems and localization can share the same Pinpoint instance when present
+        RobotHardware robotHardware = new RobotHardware(this);
+        robotHardware.init();
+
+        drive.init(hardwareMap, robotHardware);
+        localization = new FieldLocalizationFusion(robotHardware, hardwareMap, "limelight", "pinpoint");
         localization.startLimelight();
 
         telemetry.addLine("Fusion localization ready. Press START.");

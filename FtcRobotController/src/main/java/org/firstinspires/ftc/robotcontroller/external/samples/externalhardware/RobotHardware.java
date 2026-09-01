@@ -34,6 +34,8 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.Range;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 
 /*
  * This file works in conjunction with the External Hardware Class sample called: ConceptExternalHardwareClass.java
@@ -68,6 +70,10 @@ public class RobotHardware {
 
     // Optional GoBilda Pinpoint odometry/IMU driver (if present in hardware map)
     private GoBildaPinpointDriver pinpoint = null;
+
+    // Default Pinpoint configuration (team may override by calling configurePinpoint with different values)
+    private static final double DEFAULT_X_POD_OFFSET_MM = -84.0;
+    private static final double DEFAULT_Y_POD_OFFSET_MM = -168.0;
 
     // Define Drive constants.  Make them public so they CAN be used by the calling OpMode
     public static final double MID_SERVO       =  0.5 ;
@@ -111,7 +117,9 @@ public class RobotHardware {
         // Try to get the GoBilda Pinpoint device if configured on this robot
         try {
             pinpoint = myOpMode.hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
-            myOpMode.telemetry.addData("Pinpoint", "initialized");
+            // Configure with sensible defaults so subsystems using the pinpoint get usable pose out of the box
+            configurePinpointWithDefaults();
+            myOpMode.telemetry.addData("Pinpoint", "initialized and configured");
         } catch (Exception e) {
             pinpoint = null;
             myOpMode.telemetry.addData("Pinpoint", "not configured");
@@ -191,5 +199,34 @@ public class RobotHardware {
     public GoBildaPinpointDriver getPinpoint() {
         return pinpoint;
     }
+
+    /**
+     * Configure the pinpoint device with the provided offsets and common settings.
+     * This allows RobotHardware to set reasonable defaults so other subsystems can use the pinpoint immediately.
+     */
+    public void configurePinpoint(double xPodOffsetMm, double yPodOffsetMm) {
+        if (pinpoint == null) return;
+
+        try {
+            pinpoint.setOffsets(xPodOffsetMm, yPodOffsetMm, DistanceUnit.MM);
+            pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
+            pinpoint.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.FORWARD,
+                    GoBildaPinpointDriver.EncoderDirection.FORWARD);
+            // Reset IMU/position and set origin at (0,0,0)
+            pinpoint.resetPosAndIMU();
+            pinpoint.setPosition(new Pose2D(DistanceUnit.INCH, 0, 0, org.firstinspires.ftc.robotcore.external.navigation.AngleUnit.DEGREES, 0));
+        } catch (Exception e) {
+            // ignore configuration errors; callers can reconfigure later
+            myOpMode.telemetry.addData("Pinpoint-config", "failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Apply default pinpoint configuration used by the sample code.
+     */
+    public void configurePinpointWithDefaults() {
+        configurePinpoint(DEFAULT_X_POD_OFFSET_MM, DEFAULT_Y_POD_OFFSET_MM);
+    }
 }
+
 

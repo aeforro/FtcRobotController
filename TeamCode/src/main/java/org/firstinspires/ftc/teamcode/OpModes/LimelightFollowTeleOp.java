@@ -19,7 +19,9 @@ public class LimelightFollowTeleOp extends OpMode {
     private final double MAX_TURN = 0.5;
 
     // Desired target area (tweak for your tag distance). Larger -> closer.
-    private final double DESIRED_AREA = 3.0;
+    // Default increased — calibrate with D-Pad during testing to match ~1ft for your setup.
+    private double DESIRED_AREA = 25.0; // runtime-tunable via dpad up/down
+
 
     // If limelight camera is mounted facing backwards on the robot set this to true
     private final boolean cameraFacingBack = true;
@@ -60,22 +62,29 @@ public class LimelightFollowTeleOp extends OpMode {
 
                 double areaError = DESIRED_AREA - ta;
 
+                // Allow runtime tuning of desired area with D-Pad
+                if (gamepad1.dpad_up) DESIRED_AREA += 1.0;
+                if (gamepad1.dpad_down) DESIRED_AREA = Math.max(1.0, DESIRED_AREA - 1.0);
+
                 // If robot is already head-on and close enough, brake to a stop and hold
                 if (Math.abs(tx) <= TX_TOLERANCE_DEG && ta >= (DESIRED_AREA - AREA_TOLERANCE)) {
                     drive.stop(); // motors are set to BRAKE in the drive subsystem
                     telemetry.addData("Status", "Stopped: ~1ft, head-on");
                     telemetry.addData("tx", "%.2f", tx);
                     telemetry.addData("ta", "%.2f", ta);
+                    telemetry.addData("DesiredArea", "%.2f", DESIRED_AREA);
                 } else {
                     // Steering to center the target
                     double turn = clamp(-tx * KP_TURN, -MAX_TURN, MAX_TURN);
 
-                    // Approach: scale forward speed by how far we are from the desired area
-                    // as we get closer the speed reduces (smooth slow-down)
-                    double speedScale = Math.max(0.0, Math.min(1.0, areaError / DESIRED_AREA));
-                    // use square-root curve to make the final approach gentler
-                    speedScale = Math.sqrt(speedScale);
-                    double forward = clamp(speedScale * MAX_FORWARD, 0.0, MAX_FORWARD);
+                    // Approach: normalized area error [0,1]
+                    double areaNorm = Math.max(0.0, Math.min(1.0, areaError / DESIRED_AREA));
+                    // use sqrt curve to have gentle final approach (larger early speed, slower near target)
+                    double speedScale = Math.sqrt(areaNorm);
+
+                    // Minimum small crawl speed to overcome static friction but keep it gentle
+                    final double MIN_FORWARD = 0.06 * MAX_FORWARD;
+                    double forward = clamp(speedScale * MAX_FORWARD, MIN_FORWARD, MAX_FORWARD);
 
                     // If camera is facing backwards relative to robot, invert controls
                     if (cameraFacingBack) {
@@ -91,6 +100,7 @@ public class LimelightFollowTeleOp extends OpMode {
                     telemetry.addData("ta", "%.2f", ta);
                     telemetry.addData("forward", "%.2f", forward);
                     telemetry.addData("turn", "%.2f", turn);
+                    telemetry.addData("DesiredArea", "%.2f", DESIRED_AREA);
                 }
             } else {
                 // No valid tag: stop and notify

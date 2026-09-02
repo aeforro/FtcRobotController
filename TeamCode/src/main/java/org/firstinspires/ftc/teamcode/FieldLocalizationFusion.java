@@ -52,15 +52,17 @@ public class FieldLocalizationFusion {
      */
     public FieldLocalizationFusion(RobotHardware robotHardware, HardwareMap hardwareMap, String limelightName, String pinpointName) {
         this.limelight = new LimelightFieldLocalization(hardwareMap, limelightName);
+        GoBildaPinpointDriver tempPinpoint = null;
         if (robotHardware != null && robotHardware.hasPinpoint()) {
-            this.pinpoint = robotHardware.getPinpoint();
+            tempPinpoint = robotHardware.getPinpoint();
         } else {
             try {
-                this.pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, pinpointName);
+                tempPinpoint = hardwareMap.get(GoBildaPinpointDriver.class, pinpointName);
             } catch (Exception e) {
-                this.pinpoint = null;
+                tempPinpoint = null;
             }
         }
+        this.pinpoint = tempPinpoint;
 
         if (this.pinpoint != null) {
             configurePinpoint();

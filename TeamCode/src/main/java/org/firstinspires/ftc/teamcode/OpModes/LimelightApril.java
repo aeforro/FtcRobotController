@@ -1,7 +1,5 @@
 package org.firstinspires.ftc.teamcode.OpModes;
 
-import static org.firstinspires.ftc.robotcore.external.BlocksOpModeCompanion.telemetry;
-
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
@@ -24,17 +22,15 @@ public class LimelightApril extends OpMode{
     public void start() {
         limelight3A.start();
     }
-    @Override
-
 
     @Override
     public void loop() {
         LLResult llResult = limelight3A.getLatestResult();
         if (llResult != null && llResult.isValid()) {
             Pose3D botPose = llResult.getBotpose();
-            telemetry.addData("Target X", botPose.getTx());
-            telemetry.addData("Target Y", botPose.getTy());
-            telemetry.addData("Target Z", botPose.getTa());
+            telemetry.addData("Target X", llResult.getTx());
+            telemetry.addData("Target Y", llResult.getTy());
+            telemetry.addData("Target Area", llResult.getTa());
             telemetry.addData("BotPose", botPose.toString());
             telemetry.addData("Yaw", botPose.getOrientation().getYaw());
         }

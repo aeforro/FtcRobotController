@@ -28,10 +28,16 @@ public class MecanumDrive {
         frontLeftMotor.setDirection(DcMotor.Direction.REVERSE);
         backLeftMotor.setDirection(DcMotor.Direction.REVERSE);
 
+        // Use encoder-based closed-loop speed control and BRAKE on zero power so the robot resists coasting
         frontLeftMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         backLeftMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         frontRightMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         backRightMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+
+        frontLeftMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        backLeftMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        frontRightMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        backRightMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         imu = hwMap.get(IMU.class, "imu");
 
@@ -78,6 +84,14 @@ public class MecanumDrive {
         backLeftMotor.setPower(0.0);
         frontRightMotor.setPower(0.0);
         backRightMotor.setPower(0.0);
+    }
+
+    public void setBrakeMode(boolean brake) {
+        DcMotor.ZeroPowerBehavior behavior = brake ? DcMotor.ZeroPowerBehavior.BRAKE : DcMotor.ZeroPowerBehavior.FLOAT;
+        frontLeftMotor.setZeroPowerBehavior(behavior);
+        backLeftMotor.setZeroPowerBehavior(behavior);
+        frontRightMotor.setZeroPowerBehavior(behavior);
+        backRightMotor.setZeroPowerBehavior(behavior);
     }
 
     public void driveFieldRelative(double forward, double strafe, double rotate) {

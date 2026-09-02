@@ -19,7 +19,7 @@ public class LimelightFollowTeleOp extends OpMode {
     private final double MAX_TURN = 0.5;
 
     // Desired target area (tweak for your tag distance). Larger -> closer.
-    private final double DESIRED_AREA = 5.0;
+    private final double DESIRED_AREA = 3.0;
 
     // If limelight camera is mounted facing backwards on the robot set this to true
     private final boolean cameraFacingBack = true;
@@ -53,25 +53,45 @@ public class LimelightFollowTeleOp extends OpMode {
                 double tx = result.getTx(); // horizontal offset degrees
                 double ta = result.getTa(); // target area (percent)
 
-                // Steering to center the target
-                double turn = clamp(-tx * KP_TURN, -MAX_TURN, MAX_TURN);
-                // Move forward/back based on difference between desired area and current area
-                double forward = clamp((DESIRED_AREA - ta) * KP_AREA, -MAX_FORWARD, MAX_FORWARD);
+                // tolerances: consider "head-on" when tx within this many degrees
+                final double TX_TOLERANCE_DEG = 3.0;
+                // area tolerance: if current area is within this of desired, consider reached
+                final double AREA_TOLERANCE = 0.25;
 
-                // If camera is facing backwards relative to robot, invert controls
-                if (cameraFacingBack) {
-                    forward = -forward;
-                    turn = -turn;
+                double areaError = DESIRED_AREA - ta;
+
+                // If robot is already head-on and close enough, brake to a stop and hold
+                if (Math.abs(tx) <= TX_TOLERANCE_DEG && ta >= (DESIRED_AREA - AREA_TOLERANCE)) {
+                    drive.stop(); // motors are set to BRAKE in the drive subsystem
+                    telemetry.addData("Status", "Stopped: ~1ft, head-on");
+                    telemetry.addData("tx", "%.2f", tx);
+                    telemetry.addData("ta", "%.2f", ta);
+                } else {
+                    // Steering to center the target
+                    double turn = clamp(-tx * KP_TURN, -MAX_TURN, MAX_TURN);
+
+                    // Approach: scale forward speed by how far we are from the desired area
+                    // as we get closer the speed reduces (smooth slow-down)
+                    double speedScale = Math.max(0.0, Math.min(1.0, areaError / DESIRED_AREA));
+                    // use square-root curve to make the final approach gentler
+                    speedScale = Math.sqrt(speedScale);
+                    double forward = clamp(speedScale * MAX_FORWARD, 0.0, MAX_FORWARD);
+
+                    // If camera is facing backwards relative to robot, invert controls
+                    if (cameraFacingBack) {
+                        forward = -forward;
+                        turn = -turn;
+                    }
+
+                    // No strafing in follow mode; you can add strafe control if needed
+                    drive.drive(forward, 0.0, turn);
+
+                    telemetry.addData("Follow", "ON");
+                    telemetry.addData("tx", "%.2f", tx);
+                    telemetry.addData("ta", "%.2f", ta);
+                    telemetry.addData("forward", "%.2f", forward);
+                    telemetry.addData("turn", "%.2f", turn);
                 }
-
-                // No strafing in follow mode; you can add strafe control if needed
-                drive.drive(forward, 0.0, turn);
-
-                telemetry.addData("Follow", "ON");
-                telemetry.addData("tx", "%.2f", tx);
-                telemetry.addData("ta", "%.2f", ta);
-                telemetry.addData("forward", "%.2f", forward);
-                telemetry.addData("turn", "%.2f", turn);
             } else {
                 // No valid tag: stop and notify
                 drive.stop();

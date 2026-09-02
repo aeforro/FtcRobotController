@@ -3,6 +3,8 @@ package org.firstinspires.ftc.teamcode;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
+import org.firstinspires.ftc.robotcontroller.external.samples.externalhardware.RobotHardware;
+
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
@@ -43,6 +45,27 @@ public class FieldLocalizationFusion {
         this.pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, pinpointName);
         configurePinpoint();
         resetPose(0.0, 0.0, 0.0);
+    }
+
+    /**
+     * Prefer a Pinpoint instance from RobotHardware when available.  Falls back to the HardwareMap name otherwise.
+     */
+    public FieldLocalizationFusion(RobotHardware robotHardware, HardwareMap hardwareMap, String limelightName, String pinpointName) {
+        this.limelight = new LimelightFieldLocalization(hardwareMap, limelightName);
+        if (robotHardware != null && robotHardware.hasPinpoint()) {
+            this.pinpoint = robotHardware.getPinpoint();
+        } else {
+            try {
+                this.pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, pinpointName);
+            } catch (Exception e) {
+                this.pinpoint = null;
+            }
+        }
+
+        if (this.pinpoint != null) {
+            configurePinpoint();
+            resetPose(0.0, 0.0, 0.0);
+        }
     }
 
     public void startLimelight() {

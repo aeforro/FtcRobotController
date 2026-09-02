@@ -36,6 +36,9 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.IMU;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 /*
  * This OpMode illustrates how to program your robot to drive field relative.  This means
  * that the robot drives the direction you push the joystick regardless of the current orientation
@@ -62,6 +65,10 @@ public class RobotTeleopMecanumFieldRelativeDrive extends OpMode {
     // This declares the IMU needed to get the current direction the robot is facing
     IMU imu;
 
+    // Optional Pinpoint device
+    GoBildaPinpointDriver pinpoint = null;
+    boolean usePinpoint = false;
+
     @Override
     public void init() {
         frontLeftDrive = hardwareMap.get(DcMotor.class, "front_left_drive");
@@ -82,6 +89,16 @@ public class RobotTeleopMecanumFieldRelativeDrive extends OpMode {
         backRightDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
         imu = hardwareMap.get(IMU.class, "imu");
+        // Try to use GoBilda Pinpoint if configured (hardware name "pinpoint")
+        try {
+            pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+            usePinpoint = true;
+            telemetry.log().add("Using GoBilda Pinpoint for heading");
+        } catch (Exception e) {
+            pinpoint = null;
+            usePinpoint = false;
+        }
+
         // This needs to be changed to match the orientation on your robot
         RevHubOrientationOnRobot.LogoFacingDirection logoDirection =
                 RevHubOrientationOnRobot.LogoFacingDirection.UP;
@@ -103,7 +120,17 @@ public class RobotTeleopMecanumFieldRelativeDrive extends OpMode {
         // If you press the A button, then you reset the Yaw to be zero from the way
         // the robot is currently pointing
         if (gamepad1.a) {
-            imu.resetYaw();
+            if (usePinpoint && pinpoint != null) {
+                try {
+                    // resetHeading-like behavior: zero the IMU and keep current X,Y
+                    Pose2D p = pinpoint.getPosition();
+                    pinpoint.setPosition(new Pose2D(DistanceUnit.INCH, p.getX(DistanceUnit.INCH), p.getY(DistanceUnit.INCH), AngleUnit.DEGREES, 0));
+                } catch (Exception e) {
+                    // ignore
+                }
+            } else {
+                imu.resetYaw();
+            }
         }
         // If you press the left bumper, you get a drive from the point of view of the robot
         // (much like driving an RC vehicle)
@@ -121,8 +148,15 @@ public class RobotTeleopMecanumFieldRelativeDrive extends OpMode {
         double r = Math.hypot(right, forward);
 
         // Second, rotate angle by the angle the robot is pointing
-        theta = AngleUnit.normalizeRadians(theta -
-                imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS));
+        double robotYawRad;
+        if (usePinpoint && pinpoint != null) {
+            pinpoint.update();
+            robotYawRad = Math.toRadians(pinpoint.getPosition().getHeading(AngleUnit.DEGREES));
+        } else {
+            robotYawRad = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);
+        }
+
+        theta = AngleUnit.normalizeRadians(theta - robotYawRad);
 
         // Third, convert back to cartesian
         double newForward = r * Math.sin(theta);

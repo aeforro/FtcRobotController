@@ -31,12 +31,14 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
+import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 /*
  * This file includes a teleop (driver-controlled) file for the goBILDA® StarterBot with Mecanum
  * Wheels for the 2026-2027 FIRST® Tech Challenge. On top of a mecanum wheel drivetrain, it uses
- * one motor driving an intake roller, two servos which pull elements out of corners, and a high-speed
- * launcher motor.
+ * one motor driving an intake roller, two servos which pull elements out of corners, two high-speed
+ * launcher motors, and separate pollen and nectar gate servos.
  *
  * Likely the most niche concept we'll use in this example is closed-loop motor velocity control.
  * This control method reads the current speed as reported by the motor's encoder and applies a varying
@@ -56,11 +58,12 @@ public class BioBuzzStarterbotTeleopMecanum extends OpMode {
     private DcMotor leftBackDrive = null;
     private DcMotor rightFrontDrive = null;
     private DcMotor rightBackDrive = null;
-    private DcMotorEx launcher = null;
+    private DcMotorEx pollenLauncher = null;
+    private DcMotorEx nectarLauncher = null;
     private DcMotor intake = null;
-    private CRServo leftIntakeServo = null;
-    private CRServo rightIntakeServo = null;
-    private CRServo windmillServo = null;
+
+    private Servo pollenGate = null;
+    private Servo nectarGate = null;
 
 
     /*
@@ -73,8 +76,17 @@ public class BioBuzzStarterbotTeleopMecanum extends OpMode {
      * in the launch() function to only run the windmill servo when the motor is spinning fast
      * enough to make a successful throw.
      */
-    public final int LAUNCHER_TARGET_VELOCITY = 1250; //2678 RPM
-    public final int LAUNCHER_MIN_VELOCITY = 1200; //2571 RPM
+    public final int LAUNCHER_TARGET_VELOCITY = 1650;
+    public final int LAUNCHER_MIN_VELOCITY = 1580;
+    private static final double SHOOTER_READY_DWELL_SECONDS = 0.25;
+    private static final double STRAFE_DEADBAND = 0.08;
+    private static final double INITIAL_GATE_POSITION = 1.0;
+    private static final double POLLEN_GATE_CLOSED_POSITION = 0.8;
+    private static final double POLLEN_GATE_OPEN_POSITION = 0.2;
+    private static final double NECTAR_GATE_CLOSED_POSITION = 1.0;
+    private static final double NECTAR_GATE_OPEN_POSITION = 0.0;
+    private final ElapsedTime shooterReadyTimer = new ElapsedTime();
+    private boolean shooterReadyTiming;
 
 
     /*
@@ -106,10 +118,11 @@ public class BioBuzzStarterbotTeleopMecanum extends OpMode {
         leftBackDrive = hardwareMap.get(DcMotor.class, "left_back_drive");
         rightBackDrive = hardwareMap.get(DcMotor.class, "right_back_drive");
         intake = hardwareMap.get(DcMotor.class, "intake");
-        launcher = hardwareMap.get(DcMotorEx.class, "launcher");
-        windmillServo = hardwareMap.get(CRServo.class, "windmillServo");
-        leftIntakeServo = hardwareMap.get(CRServo.class, "left_intake_servo");
-        rightIntakeServo = hardwareMap.get(CRServo.class, "right_intake_servo");
+        pollenLauncher = hardwareMap.get(DcMotorEx.class, "pollenLauncher");
+        nectarLauncher = hardwareMap.get(DcMotorEx.class, "nectarLauncher");
+        pollenGate = hardwareMap.get(Servo.class, "pollen_gate");
+        nectarGate = hardwareMap.get(Servo.class, "nectar_gate");
+        nectarGate.setDirection(Servo.Direction.REVERSE);
 
         /*
          * To drive forward, most robots need the motor on one side to be reversed,
@@ -119,7 +132,7 @@ public class BioBuzzStarterbotTeleopMecanum extends OpMode {
          * Reduction or 90 Deg drives may require direction flips
          */
         leftFrontDrive.setDirection(DcMotor.Direction.REVERSE);
-        rightFrontDrive.setDirection(DcMotor.Direction.FORWARD);
+        rightFrontDrive.setDirection(DcMotor.Direction.REVERSE);
         leftBackDrive.setDirection(DcMotor.Direction.REVERSE);
         rightBackDrive.setDirection(DcMotor.Direction.FORWARD);
 
@@ -133,6 +146,7 @@ public class BioBuzzStarterbotTeleopMecanum extends OpMode {
         leftBackDrive.setZeroPowerBehavior(BRAKE);
         rightBackDrive.setZeroPowerBehavior(BRAKE);
         intake.setZeroPowerBehavior(BRAKE);
+        intake.setDirection(DcMotorSimple.Direction.REVERSE);
 
         /*
          * Here we set our launcher to the RUN_USING_ENCODER runmode.
@@ -142,23 +156,24 @@ public class BioBuzzStarterbotTeleopMecanum extends OpMode {
          * through any wiring.
          */
 
-        launcher.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        pollenLauncher.setDirection(DcMotorSimple.Direction.FORWARD);
+        nectarLauncher.setDirection(DcMotorSimple.Direction.REVERSE);
+        pollenLauncher.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        nectarLauncher.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
-        launcher.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(40, 0, 0, 12.5));
+        PIDFCoefficients launcherPidf = new PIDFCoefficients(40, 0, 0, 12.5);
+        pollenLauncher.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, launcherPidf);
+        nectarLauncher.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, launcherPidf);
 
-        /*
-         * set Feeders to an initial value to initialize the servo controller
-         */
-        leftIntakeServo.setPower(0);
-        rightIntakeServo.setPower(0);
-        windmillServo.setPower(0);
+
+        pollenGate.setPosition(INITIAL_GATE_POSITION);
+        nectarGate.setPosition(INITIAL_GATE_POSITION);
 
         /*
          * Much like our drivetrain motors, we set the right intake servo to reverse so that both
          * servos work to pull elements into the intake.
          */
-        rightIntakeServo.setDirection(DcMotorSimple.Direction.REVERSE);
-        windmillServo.setDirection(DcMotorSimple.Direction.REVERSE);
+
 
         /*
          * Tell the driver that initialization is complete.
@@ -195,21 +210,20 @@ public class BioBuzzStarterbotTeleopMecanum extends OpMode {
          * Note, moving the joystick forward on most gamepads results in a negative signal, so
          * we invert it before passing it to the function.
          */
-        mecanumDrive(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
+        double rawStrafeInput = gamepad1.left_stick_x;
+        double strafeInput = rawStrafeInput;
+        if (Math.abs(strafeInput) < STRAFE_DEADBAND) {
+            strafeInput = 0;
+        }
+        mecanumDrive(-gamepad1.left_stick_y, strafeInput, gamepad1.right_stick_x);
 
-        /*
-         * Set the intake power variable to equal the right trigger, minus the left trigger.
-         * Each trigger outputs a signal from 0-1, with 0 as fully released, and 1 fully depressed.
-         * This gives us proportional control of the intake speed. The speed increases as we pull
-         * the right trigger further. It's occasionally helpful to be able to reverse the intake,
-         * so we also factor in the left trigger. If the left trigger is fully depressed,
-         * the intakePower variable will be -1. If the right trigger is fully depressed, the variable
-         * will be 1. If the driver pulls both triggers, the intake will remain off.
-         * We use this technique (creating a variable, and setting it to our control inputs) to
-         * allow us to avoid setting the same motors/servos power more than once per loop. That can
-         * create erratic behavior.
-         */
-        intakePower = gamepad1.right_trigger - gamepad1.left_trigger;
+        if (gamepad1.left_trigger > 0.1) {
+            intakePower = -1.0;
+        } else if (gamepad1.right_trigger > 0.1) {
+            intakePower = 1.0;
+        } else {
+            intakePower = 0.0;
+        }
 
         launch();
 
@@ -222,15 +236,15 @@ public class BioBuzzStarterbotTeleopMecanum extends OpMode {
          */
 
         intake.setPower(intakePower);
-        leftIntakeServo.setPower(intakePower);
-        rightIntakeServo.setPower(intakePower);
+
 
         /*
          * Show motor powers on the Driver Station via telemetry.
          */
         
-        telemetry.addData("Motors", "left (%.2f), right (%.2f)", leftFrontPower, rightFrontPower);
-        telemetry.addData("Triggers", "left (%.2f, right (%.2f)",gamepad1.left_trigger, gamepad1.right_trigger);
+        telemetry.addData("Drive powers", "LF %.2f, RF %.2f, LB %.2f, RB %.2f",
+                leftFrontPower, rightFrontPower, leftBackPower, rightBackPower);
+        telemetry.addData("Strafe input", "raw %.3f, applied %.3f", rawStrafeInput, strafeInput);
     }
 
     /*
@@ -238,6 +252,11 @@ public class BioBuzzStarterbotTeleopMecanum extends OpMode {
      */
     @Override
     public void stop() {
+        intake.setPower(0);
+        pollenLauncher.setVelocity(0);
+        nectarLauncher.setVelocity(0);
+        pollenGate.setPosition(POLLEN_GATE_CLOSED_POSITION);
+        nectarGate.setPosition(NECTAR_GATE_CLOSED_POSITION);
     }
 
     void mecanumDrive(double forward, double strafe, double rotate) {
@@ -267,32 +286,44 @@ public class BioBuzzStarterbotTeleopMecanum extends OpMode {
     }
 
     void launch() {
-        /*
-         * Calling gamepad1.right_bumper returns a boolean which will be true if the bumper is
-         * held down, and false if it is not. Notably, this will continue to be true for every
-         * cycle of our code that the driver holds down that bumper.
-         * The first step of our launch() function is checking to see if the user is currently
-         * holding down the right gamepad. If they are, then we want to start spinning up the launcher.
-         * Otherwise, we start spinning the launcher down.
-         */
-        if (gamepad1.right_bumper) {
-            launcher.setVelocity(LAUNCHER_TARGET_VELOCITY);
+        boolean pollenRequested = gamepad2.left_bumper || gamepad2.a;
+        boolean nectarRequested = gamepad2.right_bumper;
+        boolean shootingRequested = pollenRequested || nectarRequested;
+
+        if (shootingRequested) {
+            pollenLauncher.setVelocity(LAUNCHER_TARGET_VELOCITY);
+            nectarLauncher.setVelocity(LAUNCHER_TARGET_VELOCITY);
         } else {
-            launcher.setVelocity(0);
+            pollenLauncher.setVelocity(0);
+            nectarLauncher.setVelocity(0);
         }
 
-        /*
-         * Here we ask if the driver is currently pressing the right bumper, AND the launcher is
-         * spinning fast enough to make a successful shot. If it is, then we will turn on the
-         * windmill servo to start feeding the elements into the launcher motor. We also
-         * add some power to the intake power. This can sometimes help dislodge stuck elements from
-         * inside the hopper.
-         */
-        if (gamepad1.right_bumper && launcher.getVelocity() > LAUNCHER_MIN_VELOCITY) {
-            windmillServo.setPower(1);
-            intakePower += 0.5;
+        double pollenVelocity = Math.abs(pollenLauncher.getVelocity());
+        double nectarVelocity = Math.abs(nectarLauncher.getVelocity());
+        boolean shooterAtSpeed =
+                pollenVelocity >= LAUNCHER_MIN_VELOCITY
+                        && nectarVelocity >= LAUNCHER_MIN_VELOCITY;
+        if (shootingRequested && shooterAtSpeed) {
+            if (!shooterReadyTiming) {
+                shooterReadyTimer.reset();
+                shooterReadyTiming = true;
+            }
         } else {
-            windmillServo.setPower(0);
+            shooterReadyTiming = false;
         }
+        boolean shooterReady = shooterReadyTiming
+                && shooterReadyTimer.seconds() >= SHOOTER_READY_DWELL_SECONDS;
+        telemetry.addData("Shooter velocity (ticks/s)", "pollen %.0f, nectar %.0f",
+                pollenVelocity, nectarVelocity);
+        telemetry.addData("Shooter ready", shooterReady);
+
+        pollenGate.setPosition(
+                gamepad2.a || (gamepad2.left_bumper && shooterReady)
+                        ? POLLEN_GATE_OPEN_POSITION
+                        : POLLEN_GATE_CLOSED_POSITION);
+        nectarGate.setPosition(
+                nectarRequested && shooterReady
+                        ? NECTAR_GATE_OPEN_POSITION
+                        : NECTAR_GATE_CLOSED_POSITION);
     }
 }

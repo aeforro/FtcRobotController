@@ -49,7 +49,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
  * we will also need to adjust the "PIDF" coefficients with some that are a better fit for our application.
  */
 
-@TeleOp(name = "Mec BioBuzz StarterBot Teleop", group = "StarterBot")
+@TeleOp(name = "Saline Teleop", group = "StarterBot")
 //@Disabled
 public class BioBuzzStarterbotTeleopMecanum extends OpMode {
 
@@ -76,8 +76,8 @@ public class BioBuzzStarterbotTeleopMecanum extends OpMode {
      * in the launch() function to only run the windmill servo when the motor is spinning fast
      * enough to make a successful throw.
      */
-    public final int LAUNCHER_TARGET_VELOCITY = 1650;
-    public final int LAUNCHER_MIN_VELOCITY = 1580;
+    public final int LAUNCHER_TARGET_VELOCITY = 1730;
+    public final int LAUNCHER_MIN_VELOCITY = 1680;
     private static final double SHOOTER_READY_DWELL_SECONDS = 0.25;
     private static final double STRAFE_DEADBAND = 0.08;
     private static final double INITIAL_GATE_POSITION = 1.0;

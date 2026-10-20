@@ -27,7 +27,8 @@ public class MecanumDrive {
 
         frontLeftMotor.setDirection(DcMotor.Direction.REVERSE);
         backLeftMotor.setDirection(DcMotor.Direction.REVERSE);
-        frontRightMotor.setDirection(DcMotor.Direction.REVERSE);
+        frontRightMotor.setDirection(DcMotor.Direction.FORWARD);
+        backRightMotor.setDirection(DcMotor.Direction.FORWARD);
 
         // Use encoder-based closed-loop speed control and BRAKE on zero power so the robot resists coasting
         frontLeftMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);

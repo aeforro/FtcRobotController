@@ -58,7 +58,7 @@ public class ShooterTurretTeleOp extends LinearOpMode {
         flywheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         counterRoller.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
-        intakeRoller.setDirection(DcMotorSimple.Direction.FORWARD);
+        intakeRoller.setDirection(DcMotorSimple.Direction.REVERSE);
         transferRoller.setDirection(DcMotorSimple.Direction.REVERSE);
         intakeRoller.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         transferRoller.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
